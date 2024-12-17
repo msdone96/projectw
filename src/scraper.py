@@ -1,5 +1,3 @@
-# File: projectw/src/scraper.py
-
 import asyncio
 import aiohttp
 import pandas as pd
@@ -247,75 +245,62 @@ class WebScraper:
                     ])
 
 # Continuing projectw/src/scraper.py
+async def run(self):
+        """Main execution method"""
+        try:
+            logging.info(f"Loading URLs from {self.input_file}")
+            df = pd.read_excel(self.input_file)
+            urls = df.iloc[:, 0].tolist()
+            self.stats['total_urls'] = len(urls)
+            
+            logging.info(f"Total URLs to process: {len(urls)}")
+            if self.processed_urls:
+                logging.info(f"Resuming from previous run. {len(self.processed_urls)} URLs already processed")
+            
+            async with await self.create_session() as session:
+                with tqdm(total=len(urls), desc="Processing URLs") as pbar:
+                    for i in range(0, len(urls), self.batch_size):
+                        batch = urls[i:i + self.batch_size]
+                        await self.process_batch(session, batch)
+                        pbar.update(len(batch))
+                        
+                        if i % 1000 == 0:
+                            self._save_progress()
+                        if i % 100 == 0:
+                            self._log_stats()
+            
+            self._save_progress()
+            self._log_final_stats()
+            
+        except Exception as e:
+            logging.error(f"Error during execution: {e}")
+            raise
+        finally:
+            self._save_progress()
 
-   async def run(self):
-       """Main execution method"""
-       try:
-           # Load URLs from Excel
-           logging.info(f"Loading URLs from {self.input_file}")
-           df = pd.read_excel(self.input_file)
-           urls = df.iloc[:, 0].tolist()
-           self.stats['total_urls'] = len(urls)
-           
-           logging.info(f"Total URLs to process: {len(urls)}")
-           if self.processed_urls:
-               logging.info(f"Resuming from previous run. {len(self.processed_urls)} URLs already processed")
-           
-           # Process URLs in batches
-           async with await self.create_session() as session:
-               with tqdm(total=len(urls), desc="Processing URLs") as pbar:
-                   for i in range(0, len(urls), self.batch_size):
-                       batch = urls[i:i + self.batch_size]
-                       await self.process_batch(session, batch)
-                       
-                       # Update progress bar
-                       pbar.update(len(batch))
-                       
-                       # Save progress periodically
-                       if i % 1000 == 0:
-                           self._save_progress()
-                           
-                       # Log statistics
-                       if i % 100 == 0:
-                           self._log_stats()
-           
-           # Final progress save
-           self._save_progress()
-           
-           # Log final statistics
-           self._log_final_stats()
-           
-       except Exception as e:
-           logging.error(f"Error during execution: {e}")
-           raise
-       finally:
-           self._save_progress()
+    def _log_stats(self):
+        elapsed = time.time() - self.stats['start_time']
+        speed = self.stats['processed'] / elapsed if elapsed > 0 else 0
+        
+        logging.info(
+            f"Progress: {self.stats['processed']}/{self.stats['total_urls']} "
+            f"(Success: {self.stats['successful']}, "
+            f"Failed: {self.stats['failed']}, "
+            f"Links: {self.stats['whatsapp_links']}, "
+            f"Speed: {speed:.2f} URLs/s)"
+        )
 
-   def _log_stats(self):
-       """Log current statistics"""
-       elapsed = time.time() - self.stats['start_time']
-       speed = self.stats['processed'] / elapsed if elapsed > 0 else 0
-       
-       logging.info(
-           f"Progress: {self.stats['processed']}/{self.stats['total_urls']} "
-           f"(Success: {self.stats['successful']}, "
-           f"Failed: {self.stats['failed']}, "
-           f"Links: {self.stats['whatsapp_links']}, "
-           f"Speed: {speed:.2f} URLs/s)"
-       )
-
-   def _log_final_stats(self):
-       """Log final statistics"""
-       elapsed = time.time() - self.stats['start_time']
-       
-       logging.info("\n=== Scraping Summary ===")
-       logging.info(f"Total URLs: {self.stats['total_urls']}")
-       logging.info(f"Processed: {self.stats['processed']}")
-       logging.info(f"Successful: {self.stats['successful']}")
-       logging.info(f"Failed: {self.stats['failed']}")
-       logging.info(f"WhatsApp Links Found: {self.stats['whatsapp_links']}")
-       logging.info(f"Total Time: {elapsed:.2f} seconds")
-       logging.info(f"Average Speed: {self.stats['processed']/elapsed:.2f} URLs/s")
+    def _log_final_stats(self):
+        elapsed = time.time() - self.stats['start_time']
+        
+        logging.info("\n=== Scraping Summary ===")
+        logging.info(f"Total URLs: {self.stats['total_urls']}")
+        logging.info(f"Processed: {self.stats['processed']}")
+        logging.info(f"Successful: {self.stats['successful']}")
+        logging.info(f"Failed: {self.stats['failed']}")
+        logging.info(f"WhatsApp Links Found: {self.stats['whatsapp_links']}")
+        logging.info(f"Total Time: {elapsed:.2f} seconds")
+        logging.info(f"Average Speed: {self.stats['processed']/elapsed:.2f} URLs/s")
 
 def main():
    import argparse
